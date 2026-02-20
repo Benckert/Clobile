@@ -35,6 +35,7 @@ interface JournalState {
   reflections: string[];
   freeWrite: string;
   pastEntries: PastEntry[];
+  weekMoods: WeekDay[];
 }
 
 const DEFAULT_STATE: JournalState = {
@@ -42,7 +43,15 @@ const DEFAULT_STATE: JournalState = {
   reflections: REFLECTION_PROMPTS.map(() => ""),
   freeWrite: "",
   pastEntries: [],
+  weekMoods: [],
 };
+
+interface WeekDay {
+  date: string;
+  label: string;
+  mood: Mood | null;
+  hasEntry: boolean;
+}
 
 function loadPastEntries(): PastEntry[] {
   const entries: PastEntry[] = [];
@@ -64,6 +73,24 @@ function loadPastEntries(): PastEntry[] {
   return entries;
 }
 
+function loadWeekMoods(): WeekDay[] {
+  const days: WeekDay[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().split("T")[0];
+    const raw = localStorage.getItem(`clobile_journal_${key}`);
+    const parsed = raw ? (JSON.parse(raw) as { mood?: Mood }) : null;
+    days.push({
+      date: key,
+      label: d.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 1),
+      mood: parsed?.mood ?? null,
+      hasEntry: !!raw,
+    });
+  }
+  return days;
+}
+
 function loadJournalState(): JournalState {
   const todayKey = getTodayKey();
   const stored = localStorage.getItem(`clobile_journal_${todayKey}`);
@@ -73,6 +100,7 @@ function loadJournalState(): JournalState {
     reflections: parsed?.reflections ?? REFLECTION_PROMPTS.map(() => ""),
     freeWrite: parsed?.freeWrite ?? "",
     pastEntries: loadPastEntries(),
+    weekMoods: loadWeekMoods(),
   };
 }
 
@@ -87,6 +115,7 @@ export default function JournalPage() {
   function save() {
     const { mood, reflections, freeWrite } = journalState;
     localStorage.setItem(`clobile_journal_${todayKey}`, JSON.stringify({ mood, reflections, freeWrite }));
+    setJournalState((prev) => ({ ...prev, weekMoods: loadWeekMoods() }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -107,7 +136,7 @@ export default function JournalPage() {
     setJournalState((prev) => ({ ...prev, freeWrite }));
   }
 
-  const { mood, reflections, freeWrite, pastEntries } = journalState;
+  const { mood, reflections, freeWrite, pastEntries, weekMoods } = journalState;
 
   const dateStr = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -125,6 +154,39 @@ export default function JournalPage() {
           Reflect, release, and close the day with intention.
         </p>
       </div>
+
+      {/* 7-day mood history */}
+      {weekMoods.length > 0 && (
+        <section className="mb-8">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--muted)] mb-3">
+            This week
+          </h3>
+          <div className="flex gap-1.5">
+            {weekMoods.map((day) => {
+              const moodObj = MOODS.find((m) => m.value === day.mood);
+              const isToday = day.date === todayKey;
+              return (
+                <div
+                  key={day.date}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 rounded-xl border transition-all ${
+                    isToday
+                      ? "border-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]"
+                      : "border-[var(--border)] bg-[var(--surface)]"
+                  }`}
+                  title={day.date}
+                >
+                  <span className="text-base leading-none">
+                    {moodObj ? moodObj.emoji : day.hasEntry ? "📝" : "·"}
+                  </span>
+                  <span className={`text-[9px] font-medium ${isToday ? "text-[var(--primary)]" : "text-[var(--muted)]"}`}>
+                    {day.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* Mood tracker */}
       <section className="mb-8">

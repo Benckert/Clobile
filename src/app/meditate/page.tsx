@@ -6,11 +6,52 @@ const PRESETS = [5, 10, 15, 20];
 
 type BreathPhase = "inhale" | "hold" | "exhale" | "rest";
 
-const BREATH_CYCLE: { phase: BreathPhase; duration: number; label: string }[] = [
-  { phase: "inhale", duration: 4, label: "Breathe in" },
-  { phase: "hold", duration: 4, label: "Hold" },
-  { phase: "exhale", duration: 6, label: "Breathe out" },
-  { phase: "rest", duration: 2, label: "Rest" },
+interface BreathStep {
+  phase: BreathPhase;
+  duration: number;
+  label: string;
+}
+
+interface BreathTechnique {
+  id: string;
+  name: string;
+  description: string;
+  cycle: BreathStep[];
+}
+
+const BREATH_TECHNIQUES: BreathTechnique[] = [
+  {
+    id: "calm",
+    name: "Calm",
+    description: "4-4-6-2 · Reduce anxiety",
+    cycle: [
+      { phase: "inhale", duration: 4, label: "Breathe in" },
+      { phase: "hold", duration: 4, label: "Hold" },
+      { phase: "exhale", duration: 6, label: "Breathe out" },
+      { phase: "rest", duration: 2, label: "Rest" },
+    ],
+  },
+  {
+    id: "box",
+    name: "Box",
+    description: "4-4-4-4 · Build focus",
+    cycle: [
+      { phase: "inhale", duration: 4, label: "Breathe in" },
+      { phase: "hold", duration: 4, label: "Hold" },
+      { phase: "exhale", duration: 4, label: "Breathe out" },
+      { phase: "rest", duration: 4, label: "Hold" },
+    ],
+  },
+  {
+    id: "478",
+    name: "4-7-8",
+    description: "4-7-8 · Deepen sleep",
+    cycle: [
+      { phase: "inhale", duration: 4, label: "Breathe in" },
+      { phase: "hold", duration: 7, label: "Hold" },
+      { phase: "exhale", duration: 8, label: "Breathe out" },
+    ],
+  },
 ];
 
 function getGardenLevel(totalMinutes: number): number {
@@ -55,6 +96,10 @@ export default function MeditatePage() {
   const [sessionComplete, setSessionComplete] = useState(false);
   const [sessionMinutes, setSessionMinutes] = useState(0);
 
+  // Breathing technique
+  const [techniqueId, setTechniqueId] = useState("calm");
+  const technique = BREATH_TECHNIQUES.find((t) => t.id === techniqueId) ?? BREATH_TECHNIQUES[0];
+
   // Breathing animation
   const [breathPhaseIdx, setBreathPhaseIdx] = useState(0);
   const [breathProgress, setBreathProgress] = useState(0);
@@ -98,12 +143,12 @@ export default function MeditatePage() {
   // Breathing cycle
   useEffect(() => {
     if (isActive) {
-      const cycle = BREATH_CYCLE[breathPhaseIdx];
+      const cycle = technique.cycle[breathPhaseIdx % technique.cycle.length];
       const stepMs = (cycle.duration * 1000) / 100;
       breathTimerRef.current = setInterval(() => {
         setBreathProgress((p) => {
           if (p >= 100) {
-            setBreathPhaseIdx((idx) => (idx + 1) % BREATH_CYCLE.length);
+            setBreathPhaseIdx((idx) => (idx + 1) % technique.cycle.length);
             return 0;
           }
           return p + 1;
@@ -115,7 +160,7 @@ export default function MeditatePage() {
       setBreathPhaseIdx(0);
     }
     return () => { if (breathTimerRef.current) clearInterval(breathTimerRef.current); };
-  }, [isActive, breathPhaseIdx]);
+  }, [isActive, breathPhaseIdx, technique]);
 
   function handleSessionEnd(minutes: number) {
     setIsActive(false);
@@ -155,6 +200,8 @@ export default function MeditatePage() {
     setSelectedMinutes(mins);
     setSecondsLeft(mins * 60);
     setSessionComplete(false);
+    setBreathPhaseIdx(0);
+    setBreathProgress(0);
     setIsActive(true);
     setIsDnd(true);
   }
@@ -165,7 +212,7 @@ export default function MeditatePage() {
     handleSessionEnd(elapsed);
   }
 
-  const currentPhase = BREATH_CYCLE[breathPhaseIdx];
+  const currentPhase = technique.cycle[breathPhaseIdx % technique.cycle.length];
   const breathScale = currentPhase.phase === "inhale"
     ? 1 + 0.4 * (breathProgress / 100)
     : currentPhase.phase === "exhale"
@@ -257,6 +304,33 @@ export default function MeditatePage() {
             </div>
           ))}
         </div>
+
+        {/* Breathing technique */}
+        <section className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-5 mb-4">
+          <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--muted)] mb-3">
+            Breathing technique
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            {BREATH_TECHNIQUES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => { setTechniqueId(t.id); setBreathPhaseIdx(0); setBreathProgress(0); }}
+                className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border text-center transition-all ${
+                  techniqueId === t.id
+                    ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                    : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--primary)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                <span className={`text-sm font-semibold ${techniqueId === t.id ? "text-white" : "text-[var(--foreground)]"}`}>
+                  {t.name}
+                </span>
+                <span className={`text-[10px] leading-tight ${techniqueId === t.id ? "text-white/80" : "text-[var(--muted)]"}`}>
+                  {t.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Timer setup */}
         <section className="bg-[var(--surface)] rounded-2xl border border-[var(--border)] p-5 mb-6">
